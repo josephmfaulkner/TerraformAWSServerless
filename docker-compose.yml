@@ -1,0 +1,52 @@
+version: "3.9"
+
+networks:
+  docker-localstack-network:
+    # Specify driver options
+    driver: bridge
+
+services:
+  localstack:
+    container_name: localstack
+    image: localstack/localstack
+    ports:
+      - "4566:4566"            # LocalStack Gateway
+      - "4510-4559:4510-4559"  # external services port range
+    environment:
+      # LocalStack configuration: https://docs.localstack.cloud/references/configuration/
+      - SERVICES=s3, iam, lambda, dynamodb
+      - AWS_ACCESS_KEY_ID="fake"
+      - AWS_SECRET_ACCESS_KEY="fake"
+      - DEBUG=${DEBUG:-0}
+      - HOST_LAMBDA_DIR=${PWD}
+      - LAMBDA_DEBUG_MODE=1
+      - LAMBDA_DEBUG_MODE_CONFIG_PATH=/tmp/debug_config.yaml
+      - AWS_DEFAULT_REGION=us-west-2
+      - DEFAULT_REGION=us-west-2
+    volumes:
+      - "./debug_config.yaml:/tmp/debug_config.yaml"
+      - "${LOCALSTACK_VOLUME_DIR:-./volume}:/var/lib/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+
+    networks:
+      docker-localstack-network:
+        aliases:
+          - s3
+          - sns
+          - sqs
+          - secretsmanager
+  
+  dynamodb-admin:
+    image: aaronshaf/dynamodb-admin
+    ports:
+      - "8001:8001"
+    environment:
+      DYNAMO_ENDPOINT: "http://localstack:4566"
+      AWS_REGION: "us-west-2"
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+    depends_on:
+      - localstack
+      
+    networks:
+      docker-localstack-network:
